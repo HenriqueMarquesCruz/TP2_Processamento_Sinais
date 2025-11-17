@@ -656,7 +656,7 @@ freqs_olconv = linspace(-fs/2, fs/2, length(y_ol_conv));
 freqs_khz_olconv = freqs_olconv / 1000;
 
 fig5 = fixedFig('4. BÔNUS: Implementação overlap-add', defaultFigPos);
-figure(fig5);  % força ativação da janela correta
+figure(fig4);  % força ativação da janela correta
 
 tiledlayout(3,3, 'Padding','compact', 'TileSpacing','compact'); % cria figura para comparação
 
