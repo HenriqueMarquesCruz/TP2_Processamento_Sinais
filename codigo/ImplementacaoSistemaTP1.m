@@ -77,7 +77,7 @@ title('Forma de onda do áudio corrompido');
 grid on;
 
 %% ------- 1.3 Espectros de amplitude |X(e^{j\omega})|×f (kHz) e fase θ(ω)×f (kHz) -------
-Nfft = max(nfft_spec, 2^nextpow2(N))
+Nfft = max(nfft_spec, 2^nextpow2(N));
 X = fft(x, Nfft);
 Xs = fftshift(X);
 

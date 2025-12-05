@@ -1,10 +1,11 @@
 clear; close all; clc;
 
-%% --- Configuração de figuras proporcionais ---
-set(0,'DefaultFigureUnits','pixels');
+%% --- Configuração de figuras proporcionais em qualquer máquina ---
+set(0,'DefaultFigureUnits','pixels'); % força uso de pixels
 screen = get(0,'ScreenSize');
-defaultFigPos = [125 100 1050 600];
+defaultFigPos = [125 100 1050 600];  % [left bottom width height]
 
+% Função auxiliar para criar figuras com posição e tamanho fixos
 function fh = fixedFig(name, pos)
     scr = get(0,'ScreenSize');
     left   = max(1, min(pos(1), scr(3)-20));
@@ -52,6 +53,7 @@ fprintf('   Amostras: %d, fs = %d Hz, duração = %.3f s\n\n', N, fs, N/fs);
 
 % Gráficos do sinal original
 fig1 = fixedFig('1. Sinal corrompido - Tempo e Frequência', defaultFigPos);
+figure(fig1);  % força ativação da janela correta
 
 subplot(3,1,1);
 plot(t, x);
@@ -60,46 +62,17 @@ ylabel('Amplitude');
 title('Forma de onda do áudio corrompido');
 grid on;
 
-Nfft = max(nfft_spec, 2^nextpow2(N));
-X = fft(x, Nfft);
-Xs = fftshift(X);
-
-freqs = (-Nfft/2 : Nfft/2-1) * (fs / Nfft);   % Hz
-freqs_khz = freqs / 1000;                     % kHz
-
-amp = 1/N * abs(Xs);
-phase = angle(Xs);   % fase embrulhada [–π,π]
-
-% --- Plot amplitude ---
-subplot(5,2,3);
-plot(freqs_khz, amp, 'b');
-xlabel('Frequência (kHz)');
-ylabel('|X(e^{j\omega})|');
-title('Espectro de amplitude do áudio corrompido');
-grid on;
-xlim([min(freqs_khz) max(freqs_khz)]);
-
-% --- Plot fase ---
-subplot(5,2,4);
-plot(freqs_khz, phase, 'b');
-xlabel('Frequência (kHz)');
-ylabel('Fase (rad)');
-title('Espectro de fase do áudio corrompido');
-grid on;
-xlim([min(freqs_khz) max(freqs_khz)]);
-
 % Espectro de amplitude
-Nfft = 16384;
-X = fft(x, Nfft);
+Nfft = 2^nextpow2(N);
+X = fft(x, Nfft)/N;  
 Xs = fftshift(X);
 freqs = (-Nfft/2 : Nfft/2-1) * (fs / Nfft);
 freqs_khz = freqs / 1000;
-amp = abs(Xs)/N;
 
 subplot(3,1,2);
-plot(freqs_khz, amp);
+plot(freqs_khz, abs(Xs));
 xlabel('Frequência (kHz)');
-ylabel('|X(f)|');
+ylabel('|X(e^{jω})|'); 
 title('Espectro de amplitude');
 grid on;
 xlim([min(freqs_khz) max(freqs_khz)]);
@@ -116,14 +89,18 @@ xlim([min(freqs_khz) max(freqs_khz)]);
 %% ------- 1.2 Reprodução do áudio original -------
 fprintf('1.2. Reprodução do áudio\n');
 choice = input('   Deseja ouvir o áudio corrompido? (s/n): ', 's');
+
 if lower(choice) == 's'
-    fprintf('   Reproduzindo áudio corrompido...\n');
-    sound(x, fs);
-    pause(N/fs + 0.5);
+    try
+        fprintf('Reproduzindo áudio original (corrompido)... (aguarde)\n');
+        sound(x, fs);
+        pause(N/fs); % toca até o fim
+    catch ME
+        warning(ME.identifier, 'Não foi possível reproduzir áudio: %s', ME.message);
+    end
 else
-    fprintf('   Áudio não reproduzido.\n');
+    fprintf('Ok, o áudio não será reproduzido.\n');
 end
-fprintf('\n');
 
 %% ------- 1.3 Projeto do Filtro FIR com Janela de Kaiser -------
 fprintf('1.3. Projeto do Filtro FIR (Janela de Kaiser)\n');
@@ -135,9 +112,7 @@ Ap = 0.001; % 0.1% = 0.001 em escala linear
 Ar = 0.001; % 0.1% = 0.001 em escala linear
 
 % Conversão para dB
-delta_p = Ap;
-delta_r = Ar;
-delta = min(delta_p, delta_r);
+delta = min(Ap, Ar);
 A = -20*log10(delta);  % Atenuação em dB
 
 fprintf('   fp = %.1f kHz, fr = %.1f kHz\n', fp/1000, fr/1000);
@@ -145,7 +120,7 @@ fprintf('   Ap = Ar = %.1f%%\n', Ap*100);
 fprintf('   Atenuação A = %.2f dB\n', A);
 
 % Cálculo dos parâmetros da janela de Kaiser
-% Fórmulas do Oppenheim, Seção 7.5.3
+% Oppenheim Seção 7.5.3
 if A > 50
     Beta = 0.1102 * (A - 8.7);
 elseif A >= 21
@@ -156,7 +131,7 @@ end
 
 % Largura de transição normalizada
 delta_f = (fr - fp) / fs;  % normalizada
-% Ordem do filtro (CORRIGIDO)
+% Ordem do filtro 
 N_fir = ceil((A - 8) / (2.285 * 2 * pi * delta_f));
 M = N_fir + 1;  % M = número de coeficientes
 
@@ -172,7 +147,6 @@ fc = (fp + fr) / 2;  % frequência de corte
 wc = 2 * pi * fc / fs;  % frequência angular normalizada
 
 % Resposta ao impulso do filtro ideal (passa-baixas)
-% n vai de 0 a N_fir (M = N_fir+1 pontos)
 n = 0:N_fir;
 alpha = N_fir/2;  % atraso para tornar causal 
 h_ideal = sin(wc * (n - alpha)) ./ (pi * (n - alpha));
@@ -184,8 +158,10 @@ h_fir = h_ideal .* w_kaiser';
 % Normalizar para ganho unitário em DC
 h_fir = h_fir / sum(h_fir);
 
-% Gráfico da janela (índices de 0 a N_fir)
+% Gráfico da janela
 fig2 = fixedFig('1.3. Janela de Kaiser', defaultFigPos);
+figure(fig2);  % força ativação da janela correta
+
 subplot(2,1,1);
 stem(0:N_fir, w_kaiser, 'filled');
 xlabel('n');
@@ -208,6 +184,7 @@ Nfft_filter = 16384;
 w_fir_khz = w_fir / 1000;
 
 fig3 = fixedFig('1.4. Respostas do Filtro FIR', defaultFigPos);
+figure(fig3);  % força ativação da janela correta
 
 % Magnitude linear
 subplot(2,2,1);
@@ -232,8 +209,8 @@ ylim([-120 5]);
 hold on;
 xline(fp/1000, 'r--', 'f_P');
 xline(fr/1000, 'r--', 'f_R');
-yline(-20*log10(1+Ap), 'g--', sprintf('%.1f dB', -20*log10(1+Ap)));
-yline(-A, 'g--', sprintf('%.1f dB', -A));
+yline(-20*log10(1+Ap), 'k--', sprintf('%.1f dB', -20*log10(1+Ap)));
+yline(-A, 'k--', sprintf('%.1f dB', -A));
 hold off;
 
 % Fase (unwrapped)
@@ -277,6 +254,7 @@ fprintf('   Filtragem concluída.\n\n');
 
 % Visualização
 fig4 = fixedFig('1.5. Sinais Filtrados - FIR', defaultFigPos);
+figure(fig4);  % força ativação da janela correta
 
 % Eq. Diferenças
 subplot(3,3,1);
@@ -361,7 +339,8 @@ if exist(num_iir_file,'file') && exist(den_iir_file,'file')
     
     % Comparação
     fig5 = fixedFig('1.7. Comparação FIR vs IIR', defaultFigPos);
-    
+    figure(fig5);  % força ativação da janela correta
+
     subplot(2,2,1);
     plot(t, y_iir);
     xlabel('Tempo (s)'); ylabel('Amplitude');
@@ -397,7 +376,9 @@ if exist(num_iir_file,'file') && exist(den_iir_file,'file')
     ylim([-120 5]);
     
     fprintf('   Comparação visual gerada.\n');
-    fprintf('   Observar: ripple na banda passante, fase linear, etc.\n\n');
+    fprintf('   Observações:\n');
+    fprintf('   - FIR: fase linear, sem ripple significativo\n');
+    fprintf('   - IIR: ripple ~1dB, fase não-linear, menor ordem\n\n');
 else
     fprintf('   Arquivos IIR não encontrados. Comparação não realizada.\n\n');
 end
@@ -424,22 +405,30 @@ window_length = 1024;  % L
 overlap_length = window_length / 2;  % 50% overlap (L/2)
 hop_length = window_length - overlap_length;  % R
 
+% CORREÇÃO: FFT maior para melhor resolução
+nfft_stft = 2048;  % potência de 2 >= window_length
+
 % Janela de Hann (boa para reconstrução perfeita com 50% overlap)
 win = hann(window_length, 'periodic');
 
 fprintf('   Janela: Hann\n');
 fprintf('   Comprimento: %d amostras\n', window_length);
 fprintf('   Overlap: %d amostras (%.1f%%)\n', overlap_length, 100*overlap_length/window_length);
-fprintf('   Hop: %d amostras\n\n', hop_length);
+fprintf('   Hop: %d amostras\n', hop_length);
+fprintf('   FFT Length: %d pontos\n\n', nfft_stft);
 
 % Calcular STFT
 [S, F, T] = stft(x, fs, 'Window', win, 'OverlapLength', overlap_length, ...
-                 'FFTLength', window_length);
+                 'FFTLength', nfft_stft);
+
+fprintf('   Dimensões da STFT: %d x %d (freq x tempo)\n', size(S,1), size(S,2));
+fprintf('   Faixa de frequência: 0 a %.1f kHz\n\n', max(F)/1000);
 
 %% ------- 2.2 Espectrograma -------
 fprintf('2.2. Apresentação do espectrograma\n\n');
 
 fig6 = fixedFig('2.2. Espectrograma (STFT)', defaultFigPos);
+figure(fig6);  % força ativação da janela correta
 
 % 2D
 subplot(1,2,1);
@@ -472,6 +461,7 @@ f_threshold = fr;  % 6 kHz
 idx_threshold = find(F >= f_threshold, 1);
 
 fprintf('   Analisando componentes acima de %.1f kHz\n', f_threshold/1000);
+fprintf('   Índice de corte: %d de %d bins de frequência\n', idx_threshold, length(F));
 
 % Analisar variância em cada frame
 num_frames = size(S, 2);
@@ -485,20 +475,29 @@ for k = 1:num_frames
 end
 
 % Detectar frames com ruído (variância alta)
-threshold_var = median(variance_high_freq) * 2;  % critério ajustável
+% usar threshold mais robusto
+threshold_var = median(variance_high_freq) + 2*std(variance_high_freq);
 frames_with_noise = variance_high_freq > threshold_var;
 
+fprintf('   Threshold de variância: %.4e\n', threshold_var);
 fprintf('   Frames detectados com ruído: %d de %d (%.1f%%)\n', ...
         sum(frames_with_noise), num_frames, 100*sum(frames_with_noise)/num_frames);
+
+% Calcular resposta do filtro no domínio correto
+% A STFT retorna apenas frequências positivas [0, fs/2]
+% Precisamos da resposta do filtro nesses pontos
+H_fir_stft = freqz(h_fir, 1, length(F), fs);
+
+fprintf('   Dimensões H_fir_stft: %d x 1\n', length(H_fir_stft));
+fprintf('   Dimensões S: %d x %d\n\n', size(S,1), size(S,2));
 
 % Aplicar filtro FIR apenas nos frames com ruído
 S_filtered = S;  % cópia da STFT
 
 for k = 1:num_frames
     if frames_with_noise(k)
-        % Aplicar filtro multiplicando pela resposta em frequência
-        H_fir_frame = freqz(h_fir, 1, size(S,1), 'whole', fs);
-        S_filtered(:, k) = S(:, k) .* H_fir_frame(1:size(S,1));
+        % multiplicar pela resposta correta
+        S_filtered(:, k) = S(:, k) .* H_fir_stft;
     end
 end
 
@@ -506,6 +505,7 @@ fprintf('   Filtragem adaptativa concluída.\n\n');
 
 % Visualizar decisão de filtragem
 fig7 = fixedFig('2.3. Detecção Adaptativa de Ruído', defaultFigPos);
+figure(fig7);  % força ativação da janela correta
 
 subplot(2,1,1);
 plot(T, variance_high_freq);
@@ -515,6 +515,7 @@ xlabel('Tempo (s)');
 ylabel('Variância');
 title('Variância das componentes de alta frequência');
 grid on;
+legend('Variância', 'Threshold');
 
 subplot(2,1,2);
 imagesc(T, F/1000, 20*log10(abs(S_filtered) + eps));
@@ -537,7 +538,7 @@ end
 fprintf('2.4. Reconstrução do sinal (iSTFT)\n\n');
 
 y_adaptive = istft(S_filtered, fs, 'Window', win, 'OverlapLength', overlap_length, ...
-                   'FFTLength', window_length);
+                   'FFTLength', nfft_stft);
 
 % Ajustar tamanho
 if length(y_adaptive) > N
@@ -546,8 +547,11 @@ elseif length(y_adaptive) < N
     y_adaptive = [y_adaptive; zeros(N - length(y_adaptive), 1)];
 end
 
+fprintf('   Sinal reconstruído: %d amostras\n\n', length(y_adaptive));
+
 % Visualização
 fig8 = fixedFig('2.4. Sinal Reconstruído - Filtragem Adaptativa', defaultFigPos);
+figure(fig8);  % força ativação da janela correta
 
 subplot(3,1,1);
 plot(t, x);
@@ -562,6 +566,7 @@ title('Filtragem Linear (FIR)');
 grid on;
 
 subplot(3,1,3);
+disp(max(abs(imag(y_adaptive))))
 plot(t, y_adaptive);
 xlabel('Tempo (s)'); ylabel('Amplitude');
 title('Filtragem Adaptativa (STFT)');
@@ -583,6 +588,7 @@ fprintf('\n');
 fprintf('2.6. Análise Comparativa Final\n\n');
 
 fig9 = fixedFig('2.6. Comparação Final: Linear vs Adaptativa', defaultFigPos);
+figure(fig9);  % força ativação da janela correta
 
 % Espectros
 Y_linear = fftshift(fft(y_eqdif, Nfft))/N;
@@ -593,12 +599,14 @@ semilogy(freqs_khz, abs(Y_linear));
 xlabel('f (kHz)'); ylabel('|Y(f)|');
 title('Espectro - Filtragem Linear (FIR)');
 grid on;
+xlim([0 10]);
 
 subplot(2,2,2);
 semilogy(freqs_khz, abs(Y_adaptive));
 xlabel('f (kHz)'); ylabel('|Y(f)|');
 title('Espectro - Filtragem Adaptativa');
 grid on;
+xlim([0 10]);
 
 subplot(2,2,3);
 plot(freqs_khz, abs(Y_linear));
@@ -616,20 +624,27 @@ xlabel('Tempo (s)'); ylabel('Diferença Absoluta');
 title('Diferença entre Filtragem Linear e Adaptativa');
 grid on;
 
+% Calcular métricas
+snr_linear = 10*log10(sum(y_eqdif.^2) / sum((x-y_eqdif).^2));
+snr_adaptive = 10*log10(sum(y_adaptive.^2) / sum((x-y_adaptive).^2));
+
+fprintf('Métricas de Desempenho:\n');
+fprintf('   SNR Filtragem Linear:    %.2f dB\n', snr_linear);
+fprintf('   SNR Filtragem Adaptativa: %.2f dB\n', snr_adaptive);
+fprintf('   Diferença:                %.2f dB\n\n', snr_adaptive - snr_linear);
+
 fprintf('Análise:\n');
 fprintf('   - Filtragem linear: remove ruído globalmente\n');
 fprintf('   - Filtragem adaptativa: preserva alta frequência fora do ruído\n');
 fprintf('   - Comparar espectros e audição para avaliar qualidade\n\n');
 
-fprintf('========================================\n');
-fprintf('TRABALHO PRÁTICO 2 FINALIZADO\n');
-fprintf('========================================\n');
-
 %% ===============================================================
-% FUNÇÕES AUXILIARES (do TP1)
+% FUNÇÕES AUXILIARES - TRABALHO PRÁTICO 1
 %% ===============================================================
 
 function y = filtragemPorEqDif(x, num, den)
+    % Filtragem por equação de diferenças
+    % Normalização para garantir que den(1) = 1
     if den(1) ~= 1
         num = num / den(1);
         den = den / den(1);
@@ -640,33 +655,65 @@ function y = filtragemPorEqDif(x, num, den)
     N = length(den);
     y = zeros(size(x));
     
+    % Laço amostra a amostra
     for n = 1:Nx
         acc = 0;
+        
+        % Soma dos termos num(k)*x[n-k+1]
         for k = 1:M
             idx = n - k + 1;
             if idx > 0
                 acc = acc + num(k) * x(idx);
             end
         end
+        
+        % Feedback: subtração dos termos den(k)*y[n-k+1], k>=2
         for k = 2:N
             idx = n - k + 1;
             if idx > 0
                 acc = acc - den(k) * y(idx);
             end
         end
+        
         y(n) = acc;
     end
 end
 
 function y = filtragemPorFFT(x, h)
+    % Filtragem pela multiplicação da FFT
+    % Comprimentos
     Nx = length(x);
     Nh = length(h);
-    Nfft = 2^(nextpow2(Nx+Nh-1));
     
+    % Tamanho da FFT (potência de 2 >= Nx+Nh-1)
+    % Limitar tamanho máximo para evitar overflow
+    Nfft_ideal = Nx + Nh - 1;
+    Nfft = 2^(nextpow2(Nfft_ideal));
+    
+    % Verificar se não excede limite
+    max_size = 2^27;  % ~134 milhões de elementos
+    if Nfft > max_size
+        fprintf('   AVISO: FFT muito grande (%d), usando tamanho limitado\n', Nfft);
+        Nfft = max_size;
+    end
+    
+    % Garantir que x e h são vetores coluna
+    x = x(:);
+    h = h(:);
+    
+    % FFT do sinal e da resposta
     X = fft(x, Nfft);
     H = fft(h, Nfft);
+    
+    % Multiplicação no domínio da frequência
     Y = X .* H;
     
+    % IFFT e truncagem para tamanho correto
     y = real(ifft(Y));
-    y = y(1:Nx+Nh-1);
+    
+    % Retornar apenas a parte válida da convolução
+    y = y(1:min(Nfft_ideal, length(y)));
+    
+    % Garantir formato de coluna
+    y = y(:);
 end
