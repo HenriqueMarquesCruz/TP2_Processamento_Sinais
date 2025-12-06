@@ -476,6 +476,7 @@ fprintf('2.1. Cálculo da STFT\n');
 window_length = 1024;  % L
 overlap_length = window_length / 2;  % 50% overlap (L/2)
 hop_length = window_length - overlap_length;  % R
+nfft_stft = window_length;
 
 % FFT maior para melhor resolução
 nfft_stft = 2048;  % potência de 2 >= window_length
@@ -547,7 +548,6 @@ for k = 1:num_frames
 end
 
 % Detectar frames com ruído (variância alta)
-% usar threshold mais robusto
 threshold_var = median(variance_high_freq) + 2*std(variance_high_freq);
 frames_with_noise = variance_high_freq > threshold_var;
 
@@ -555,61 +555,34 @@ fprintf('   Threshold de variância: %.4e\n', threshold_var);
 fprintf('   Frames detectados com ruído: %d de %d (%.1f%%)\n', ...
         sum(frames_with_noise), num_frames, 100*sum(frames_with_noise)/num_frames);
 
-% Calcular resposta do filtro 
-% A STFT retorna apenas frequências positivas [0, fs/2]
-H_fir_stft = freqz(h_fir, 1, length(F), fs);
-
-fprintf('   Dimensões H_fir_stft: %d x 1\n', length(H_fir_stft));
-fprintf('   Dimensões S: %d x %d\n\n', size(S,1), size(S,2));
+% Calcular resposta do filtro FIR para as frequências da STFT
+% size(S,1) contém apenas frequências positivas (incluindo Nyquist)
+H_fir_stft = freqz(h_fir, 1, size(S,1), fs);
 
 % Aplicar filtro FIR apenas nos frames com ruído
 S_filtered = S;  % cópia da STFT
 
 for k = 1:num_frames
     if frames_with_noise(k)
-        % multiplicar pela resposta correta
+        % Aplicar filtro multiplicando pela resposta em frequência
         S_filtered(:, k) = S(:, k) .* H_fir_stft;
     end
 end
 
 fprintf('   Filtragem adaptativa concluída.\n\n');
 
-% Visualizar decisão de filtragem
-fig7 = fixedFig('2.3. Detecção Adaptativa de Ruído', defaultFigPos);
-figure(fig7);  % força ativação da janela correta
-
-subplot(2,1,1);
-plot(T, variance_high_freq);
-hold on;
-yline(threshold_var, 'r--', 'Limiar');
-xlabel('Tempo (s)');
-ylabel('Variância');
-title('Variância das componentes de alta frequência');
-grid on;
-legend('Variância', 'Threshold');
-
-subplot(2,1,2);
-imagesc(T, F/1000, 20*log10(abs(S_filtered) + eps));
-axis xy;
-xlabel('Tempo (s)');
-ylabel('Frequência (kHz)');
-title('Espectrograma após filtragem adaptativa');
-colorbar;
-colormap('jet');
-caxis([-80 0]);
-hold on;
-% Marcar frames filtrados
-for k = 1:num_frames
-    if frames_with_noise(k)
-        plot([T(k) T(k)], [0 max(F)/1000], 'w--', 'LineWidth', 0.5);
-    end
-end
-
 %% ------- 2.4 Reconstrução (iSTFT) -------
 fprintf('2.4. Reconstrução do sinal (iSTFT)\n\n');
 
 y_adaptive = istft(S_filtered, fs, 'Window', win, 'OverlapLength', overlap_length, ...
                    'FFTLength', nfft_stft);
+
+% Verificar parte imaginária
+max_imag = max(abs(imag(y_adaptive)));
+fprintf('   Máxima parte imaginária: %.2e\n', max_imag);
+
+% Tomar parte real (deve ser muito pequena agora)
+y_adaptive = real(y_adaptive);
 
 % Ajustar tamanho
 if length(y_adaptive) > N
