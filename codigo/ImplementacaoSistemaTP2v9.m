@@ -267,7 +267,7 @@ y_eqdif = filtragemPorEqDif(x, num_fir, den_fir);
 
 % (b) Convolução
 fprintf('   b) Filtragem por Convolução...\n');
-y_conv = conv(x, h_fir);
+y_conv = filtragemPorConv(x, h_fir);
 y_conv = y_conv(1:N);  % truncar ao tamanho original
 
 % (c) FFT
@@ -706,23 +706,42 @@ function y = filtragemPorEqDif(x, num, den)
 end
 
 function y = filtragemPorFFT(x, h)
+    % Filtragem pela multiplicação da FFT
     % Comprimentos
     Nx = length(x);
     Nh = length(h);
-
-    % Tamanho da FFT (potência de 2 >= Nx+Nh-1)
-    Nfft = 2^(nextpow2(Nx+Nh-1));  
     
-    % FFT do sinal e da resposta truncada
+    % Tamanho da FFT (potência de 2 >= Nx+Nh-1)
+    % Limitar tamanho máximo para evitar overflow
+    Nfft_ideal = Nx + Nh - 1;
+    Nfft = 2^(nextpow2(Nfft_ideal));
+    
+    % Verificar se não excede limite
+    max_size = 2^27;  % ~134 milhões de elementos
+    if Nfft > max_size
+        fprintf('   AVISO: FFT muito grande (%d), usando tamanho limitado\n', Nfft);
+        Nfft = max_size;
+    end
+    
+    % Garantir que x e h são vetores coluna
+    x = x(:);
+    h = h(:);
+    
+    % FFT do sinal e da resposta
     X = fft(x, Nfft);
     H = fft(h, Nfft);
-
+    
     % Multiplicação no domínio da frequência
     Y = X .* H;
-
+    
     % IFFT e truncagem para tamanho correto
-    y = (real(ifft(Y)));
-    y = y(1:Nx+Nh-1);
+    y = real(ifft(Y));
+    
+    % Retornar apenas a parte válida da convolução
+    y = y(1:min(Nfft_ideal, length(y)));
+    
+    % Garantir formato de coluna
+    y = y(:);
 end
 
 function y = filtragemPorConv(x, h)
