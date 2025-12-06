@@ -144,7 +144,7 @@ fprintf('   Ap = Ar = %.1f%%\n', Ap*100);
 fprintf('   Atenuação A = %.2f dB\n', A);
 
 % Cálculo dos parâmetros da janela de Kaiser
-% Oppenheim Seção 7.5.3
+% Fórmulas do Oppenheim, Seção 7.5.3
 if A > 50
     Beta = 0.1102 * (A - 8.7);
 elseif A >= 21
@@ -155,15 +155,15 @@ end
 
 % Largura de transição normalizada
 delta_f = (fr - fp) / fs;  % normalizada
-% Ordem do filtro 
+% Ordem do filtro
 M = ceil((A - 8) / (2.285 * 2 * pi * delta_f));
-Num_coef = M + 1;  % M = número de coeficientes
+Num_coef = M + 1;  % Número de coeficientes = M+1
 
 fprintf('   Parâmetro Beta = %.4f\n', Beta);
 fprintf('   Ordem do filtro M = %d\n', M);
-fprintf('   Número de coeficientes M = %d\n\n', Num_coef);
+fprintf('   Número de coeficientes Num_coef = %d\n\n', Num_coef);
 
-% Gerar janela de Kaiser (usa M coeficientes)
+% Gerar janela de Kaiser (usa Num_coef coeficientes)
 w_kaiser = kaiser(Num_coef, Beta);
 
 % Filtro ideal passa-baixas
@@ -171,30 +171,35 @@ fc = (fp + fr) / 2;  % frequência de corte
 wc = 2 * pi * fc / fs;  % frequência angular normalizada
 
 % Resposta ao impulso do filtro ideal (passa-baixas)
-n = 0:Num_coef;
-alpha = Num_coef/2;  % atraso para tornar causal 
+n = 0:M;  % n vai de 0 a M (total de M+1 = Num_coef pontos)
+alpha = M/2;  % atraso baseado em M
 h_ideal = sin(wc * (n - alpha)) ./ (pi * (n - alpha));
 h_ideal(n == alpha) = wc / pi;  % corrigir singularidade em n = alpha
 
-% Aplicar janela
-h_fir = h_ideal .* w_kaiser';
+% Verificar tamanhos
+fprintf('   Tamanho h_ideal: %d, Tamanho w_kaiser: %d\n', length(h_ideal), length(w_kaiser));
+
+% Aplicar janela - garantir que ambos sejam vetores linha
+h_fir = h_ideal(:)' .* w_kaiser(:)';
 
 % Normalizar para ganho unitário em DC
 h_fir = h_fir / sum(h_fir);
+
+fprintf('   Tamanho h_fir: %d\n\n', length(h_fir));
 
 % Gráfico da janela
 fig2 = fixedFig('1.3. Janela de Kaiser', defaultFigPos);
 figure(fig2);  % força ativação da janela correta
 
 subplot(2,1,1);
-stem(0:N_fir, w_kaiser, 'filled');
+stem(0:M, w_kaiser, 'filled');
 xlabel('n');
 ylabel('w[n]');
-title(sprintf('Janela de Kaiser (M = %d coeficientes, N = %d, β = %.4f)', M, N_fir, Beta));
+title(sprintf('Janela de Kaiser (Num_coef = %d, M = %d, β = %.4f)', Num_coef, M, Beta));
 grid on;
 
 subplot(2,1,2);
-stem(0:Num_coef, h_fir, 'filled');
+stem(0:M, h_fir, 'filled');  % CORRIGIDO: 0:M ao invés de 0:Num_coef
 xlabel('n');
 ylabel('h[n]');
 title('Resposta ao impulso do filtro FIR após janelamento');
@@ -233,8 +238,8 @@ ylim([-120 5]);
 hold on;
 xline(fp/1000, 'r--', 'f_P');
 xline(fr/1000, 'r--', 'f_R');
-yline(-20*log10(1+Ap), 'k--', sprintf('%.1f dB', -20*log10(1+Ap)));
-yline(-A, 'k--', sprintf('%.1f dB', -A));
+yline(-20*log10(1+Ap), 'g--', sprintf('%.1f dB', -20*log10(1+Ap)));
+yline(-A, 'g--', sprintf('%.1f dB', -A));
 hold off;
 
 % Fase (unwrapped)
