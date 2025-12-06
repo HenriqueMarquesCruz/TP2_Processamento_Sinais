@@ -401,7 +401,7 @@ if exist(num_iir_file,'file') && exist(den_iir_file,'file')
     hold on;
     semilogy(freqs_khz, abs(Y_eqdif), '--');
     xlabel('f (kHz)'); ylabel('|Y(f)|');
-    title('Comparação Espectral');
+    title('Comparação Espectral da saída');
     legend('IIR', 'FIR');
     grid on;
     
@@ -414,7 +414,7 @@ if exist(num_iir_file,'file') && exist(den_iir_file,'file')
     hold on;
     plot(w_fir_khz, 20*log10(abs(H_fir)), '--');
     xlabel('f (kHz)'); ylabel('Magnitude (dB)');
-    title('Respostas em Frequência');
+    title('Respostas em Frequência dos filtros');
     legend('IIR', 'FIR');
     grid on;
     ylim([-120 5]);
@@ -477,7 +477,7 @@ window_length = 1024;  % L
 overlap_length = window_length / 2;  % 50% overlap (L/2)
 hop_length = window_length - overlap_length;  % R
 
-% CORREÇÃO: FFT maior para melhor resolução
+% FFT maior para melhor resolução
 nfft_stft = 2048;  % potência de 2 >= window_length
 
 % Janela de Hann (boa para reconstrução perfeita com 50% overlap)
