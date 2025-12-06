@@ -53,8 +53,9 @@ fprintf('   Amostras: %d, fs = %d Hz, duração = %.3f s\n\n', N, fs, N/fs);
 
 % Gráficos do sinal original
 fig1 = fixedFig('1. Sinal corrompido - Tempo e Frequência', defaultFigPos);
+figure(fig1);  % força ativação da janela correta
 
-subplot(3,1,1);
+subplot(4,1,1);
 plot(t, x);
 xlabel('Tempo (s)');
 ylabel('Amplitude');
@@ -68,7 +69,7 @@ Xs = fftshift(X);
 freqs = (-Nfft/2 : Nfft/2-1) * (fs / Nfft);
 freqs_khz = freqs / 1000;
 
-subplot(3,1,2);
+subplot(4,1,2);
 plot(freqs_khz, abs(Xs));
 xlabel('Frequência (kHz)');
 ylabel('|X(e^{jω})|'); 
@@ -77,7 +78,7 @@ grid on;
 xlim([min(freqs_khz) max(freqs_khz)]);
 
 % Espectro de fase
-subplot(3,1,3);
+subplot(4,1,3);
 plot(freqs_khz, angle(Xs));
 xlabel('Frequência (kHz)');
 ylabel('Fase (rad)');
@@ -85,8 +86,36 @@ title('Espectro de fase');
 grid on;
 xlim([min(freqs_khz) max(freqs_khz)]);
 
+
+%% ------- EXTRA: Espectrograma do sinal corrompido (Figura 4 do PDF) -------
+
+% Parâmetros do espectrograma (conforme especificação)
+window_length_spec = 1024;  % janela de 1024 pontos
+overlap_spec = window_length_spec / 2;  % 50% de sobreposição
+win_spec = hann(window_length_spec, 'periodic');
+
+% Calcular espectrograma
+[S_spec, F_spec, T_spec] = spectrogram(x, win_spec, overlap_spec, window_length_spec, fs);
+
+% Converter para frequência normalizada (0 a 1 em unidades de π rad/amostra) e tempo em amostras
+F_norm = F_spec / (fs/2);  % frequência normalizada (0 a 1, onde 1 = π rad/amostra)
+T_samples = T_spec * fs;   % tempo em amostras
+
+% Plotar espectrograma
+subplot(4,1,4);
+imagesc(T_samples, F_norm, 20*log10(abs(S_spec) + eps));
+axis xy;
+xlabel('Amostras');
+ylabel('Frequência Normalizada (π rad/amostra)');
+title('Espectrograma do sinal de áudio corrompido');
+colorbar;
+colormap('jet');
+caxis([-80 0]);
+grid on;
+
 %% ------- 1.2 Reprodução do áudio original -------
 fprintf('1.2. Reprodução do áudio\n');
+
 choice = input('   Deseja ouvir o áudio corrompido? (s/n): ', 's');
 
 if lower(choice) == 's'
@@ -111,7 +140,7 @@ Ap = 0.001; % 0.1% = 0.001 em escala linear
 Ar = 0.001; % 0.1% = 0.001 em escala linear
 
 % Conversão para dB
-delta = min(A_p, A_r);
+delta = min(Ap, Ar);
 A = -20*log10(delta);  % Atenuação em dB
 
 fprintf('   fp = %.1f kHz, fr = %.1f kHz\n', fp/1000, fr/1000);
@@ -159,6 +188,8 @@ h_fir = h_fir / sum(h_fir);
 
 % Gráfico da janela
 fig2 = fixedFig('1.3. Janela de Kaiser', defaultFigPos);
+figure(fig2);  % força ativação da janela correta
+
 subplot(2,1,1);
 stem(0:N_fir, w_kaiser, 'filled');
 xlabel('n');
@@ -181,6 +212,7 @@ Nfft_filter = 16384;
 w_fir_khz = w_fir / 1000;
 
 fig3 = fixedFig('1.4. Respostas do Filtro FIR', defaultFigPos);
+figure(fig3);  % força ativação da janela correta
 
 % Magnitude linear
 subplot(2,2,1);
@@ -250,6 +282,7 @@ fprintf('   Filtragem concluída.\n\n');
 
 % Visualização
 fig4 = fixedFig('1.5. Sinais Filtrados - FIR', defaultFigPos);
+figure(fig4);  % força ativação da janela correta
 
 % Eq. Diferenças
 subplot(3,3,1);
@@ -334,7 +367,8 @@ if exist(num_iir_file,'file') && exist(den_iir_file,'file')
     
     % Comparação
     fig5 = fixedFig('1.7. Comparação FIR vs IIR', defaultFigPos);
-    
+    figure(fig5);  % força ativação da janela correta
+
     subplot(2,2,1);
     plot(t, y_iir);
     xlabel('Tempo (s)'); ylabel('Amplitude');
@@ -422,6 +456,7 @@ fprintf('   Faixa de frequência: 0 a %.1f kHz\n\n', max(F)/1000);
 fprintf('2.2. Apresentação do espectrograma\n\n');
 
 fig6 = fixedFig('2.2. Espectrograma (STFT)', defaultFigPos);
+figure(fig6);  % força ativação da janela correta
 
 % 2D
 subplot(1,2,1);
@@ -498,6 +533,7 @@ fprintf('   Filtragem adaptativa concluída.\n\n');
 
 % Visualizar decisão de filtragem
 fig7 = fixedFig('2.3. Detecção Adaptativa de Ruído', defaultFigPos);
+figure(fig7);  % força ativação da janela correta
 
 subplot(2,1,1);
 plot(T, variance_high_freq);
@@ -543,6 +579,7 @@ fprintf('   Sinal reconstruído: %d amostras\n\n', length(y_adaptive));
 
 % Visualização
 fig8 = fixedFig('2.4. Sinal Reconstruído - Filtragem Adaptativa', defaultFigPos);
+figure(fig8);  % força ativação da janela correta
 
 subplot(3,1,1);
 plot(t, x);
@@ -579,6 +616,7 @@ fprintf('\n');
 fprintf('2.6. Análise Comparativa Final\n\n');
 
 fig9 = fixedFig('2.6. Comparação Final: Linear vs Adaptativa', defaultFigPos);
+figure(fig9);  % força ativação da janela correta
 
 % Espectros
 Y_linear = fftshift(fft(y_eqdif, Nfft))/N;
