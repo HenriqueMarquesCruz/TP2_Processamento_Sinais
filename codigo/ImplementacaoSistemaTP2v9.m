@@ -724,3 +724,38 @@ function y = filtragemPorFFT(x, h)
     y = (real(ifft(Y)));
     y = y(1:Nx+Nh-1);
 end
+
+function y = filtragemPorConv(x, h)
+    % A convolução circular é feita pelo comando cconv
+    % O tamanho é definido como Nx + Nh - 1
+    Nx = length(x);
+    Nh = length(h);
+    N  = Nx + Nh - 1;  % mesmo tamanho pedido no enunciado
+
+    y = cconv(x, h, N);
+    y = y(:);  % garante vetor coluna
+    
+    % Obs.: justo usar cconv para efeitos de comparação, uma vez que 
+    % a filtragem por FFT também se utiliza de funções nativas (fft e ifft)
+
+    % De qualquer forma, segue o Método "bruto" sem as otimizações da função cconv:
+    % x = x(:).';
+    % h = h(:).';
+    % 
+    % Nx = length(x);
+    % Nh = length(h);
+    % Ny = Nx + Nh - 1;
+    % 
+    % % Zero-padding até Ny
+    % x_pad = [x zeros(1, Ny - Nx)];
+    % h_pad = [h zeros(1, Ny - Nh)];
+    % 
+    % % Convolução circular
+    % y = zeros(1, Ny);
+    % for n = 0:Ny-1
+    %     y(n+1) = sum(x_pad .* circshift(fliplr(h_pad), [0 n]));
+    % end
+    % 
+    % % Garante saída como vetor coluna
+    % y = y(:);
+end
