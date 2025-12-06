@@ -166,6 +166,20 @@ fprintf('   Número de coeficientes Num_coef = %d\n\n', Num_coef);
 % Gerar janela de Kaiser (usa Num_coef coeficientes)
 w_kaiser = kaiser(Num_coef, Beta);
 
+% Gráfico da janela
+fig2 = fixedFig('1.3. Janela de Kaiser', defaultFigPos);
+figure(fig2);  % força ativação da janela correta
+
+subplot(1,1,1);
+stem(0:M, w_kaiser, 'filled');
+xlabel('n');
+ylabel('w[n]');
+title(sprintf('Janela de Kaiser (Num\\_coef = %d, M = %d, β = %.4f)', Num_coef, M, Beta));
+grid on;
+
+%% ------- 1.4 Resposta do filtro FIR -------
+fprintf('1.4. Apresentação das respostas do filtro FIR\n\n');
+
 % Filtro ideal passa-baixas
 fc = (fp + fr) / 2;  % frequência de corte
 wc = 2 * pi * fc / fs;  % frequência angular normalizada
@@ -182,27 +196,6 @@ h_fir = h_ideal(:)' .* w_kaiser(:)';
 % Normalizar para ganho unitário em DC
 h_fir = h_fir / sum(h_fir);
 
-% Gráfico da janela
-fig2 = fixedFig('1.3. Janela de Kaiser', defaultFigPos);
-figure(fig2);  % força ativação da janela correta
-
-subplot(2,1,1);
-stem(0:M, w_kaiser, 'filled');
-xlabel('n');
-ylabel('w[n]');
-title(sprintf('Janela de Kaiser (Num_coef = %d, M = %d, β = %.4f)', Num_coef, M, Beta));
-grid on;
-
-subplot(2,1,2);
-stem(0:M, h_fir, 'filled'); 
-xlabel('n');
-ylabel('h[n]');
-title('Resposta ao impulso do filtro FIR após janelamento');
-grid on;
-
-%% ------- 1.4 Respostas de magnitude e fase do filtro FIR -------
-fprintf('1.4. Apresentação das respostas do filtro FIR\n\n');
-
 Nfft_filter = 16384; % pontos para FFT. Poderia ser outra potência de 2, mas 16384 é um compromisso:
 %suficientemente grande para ter boa resolução em Hz, mas sem deixar a FFT lenta
 [H_fir, w_fir] = freqz(h_fir, 1, Nfft_filter, fs);
@@ -211,8 +204,16 @@ w_fir_khz = w_fir / 1000;
 fig3 = fixedFig('1.4. Respostas do Filtro FIR', defaultFigPos);
 figure(fig3);  % força ativação da janela correta
 
+% h[n]
+subplot(3,2,[1,2]);
+stem(0:M, h_fir, 'filled'); 
+xlabel('n');
+ylabel('h[n]');
+title('Resposta ao impulso do filtro FIR após janelamento');
+grid on;
+
 % Magnitude linear
-subplot(2,2,1);
+subplot(3,2,3);
 plot(w_fir_khz, abs(H_fir));
 xlabel('f (kHz)');
 ylabel('|H(f)|');
@@ -224,7 +225,7 @@ xline(fr/1000, 'r--', 'f_R');
 hold off;
 
 % Magnitude em dB
-subplot(2,2,2);
+subplot(3,2,5);
 plot(w_fir_khz, 20*log10(abs(H_fir)));
 xlabel('f (kHz)');
 ylabel('Magnitude (dB)');
@@ -234,12 +235,11 @@ ylim([-120 5]);
 hold on;
 xline(fp/1000, 'r--', 'f_P');
 xline(fr/1000, 'r--', 'f_R');
-yline(-20*log10(1+Ap), 'g--', sprintf('%.1f dB', -20*log10(1+Ap)));
-yline(-A, 'g--', sprintf('%.1f dB', -A));
+yline(-A, 'k--', sprintf('%.1f dB', -A));
 hold off;
 
 % Fase (unwrapped)
-subplot(2,2,3);
+subplot(3,2,4);
 plot(w_fir_khz, unwrap(angle(H_fir)));
 xlabel('f (kHz)');
 ylabel('Fase (rad)');
@@ -247,7 +247,7 @@ title('Fase (rad)');
 grid on;
 
 % Fase em graus
-subplot(2,2,4);
+subplot(3,2,6);
 plot(w_fir_khz, unwrap(angle(H_fir))*180/pi);
 xlabel('f (kHz)');
 ylabel('Fase (graus)');
