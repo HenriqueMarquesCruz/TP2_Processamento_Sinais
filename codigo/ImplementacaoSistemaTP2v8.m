@@ -176,16 +176,11 @@ alpha = M/2;  % atraso baseado em M
 h_ideal = sin(wc * (n - alpha)) ./ (pi * (n - alpha));
 h_ideal(n == alpha) = wc / pi;  % corrigir singularidade em n = alpha
 
-% Verificar tamanhos
-fprintf('   Tamanho h_ideal: %d, Tamanho w_kaiser: %d\n', length(h_ideal), length(w_kaiser));
-
 % Aplicar janela - garantir que ambos sejam vetores linha
 h_fir = h_ideal(:)' .* w_kaiser(:)';
 
 % Normalizar para ganho unitário em DC
 h_fir = h_fir / sum(h_fir);
-
-fprintf('   Tamanho h_fir: %d\n\n', length(h_fir));
 
 % Gráfico da janela
 fig2 = fixedFig('1.3. Janela de Kaiser', defaultFigPos);
@@ -199,7 +194,7 @@ title(sprintf('Janela de Kaiser (Num_coef = %d, M = %d, β = %.4f)', Num_coef, M
 grid on;
 
 subplot(2,1,2);
-stem(0:M, h_fir, 'filled');  % CORRIGIDO: 0:M ao invés de 0:Num_coef
+stem(0:M, h_fir, 'filled'); 
 xlabel('n');
 ylabel('h[n]');
 title('Resposta ao impulso do filtro FIR após janelamento');
@@ -208,7 +203,8 @@ grid on;
 %% ------- 1.4 Respostas de magnitude e fase do filtro FIR -------
 fprintf('1.4. Apresentação das respostas do filtro FIR\n\n');
 
-Nfft_filter = 16384;
+Nfft_filter = 16384; % pontos para FFT. Poderia ser outra potência de 2, mas 16384 é um compromisso:
+%suficientemente grande para ter boa resolução em Hz, mas sem deixar a FFT lenta
 [H_fir, w_fir] = freqz(h_fir, 1, Nfft_filter, fs);
 w_fir_khz = w_fir / 1000;
 
@@ -672,7 +668,6 @@ fprintf('   - Comparar espectros e audição para avaliar qualidade\n\n');
 %% ===============================================================
 
 function y = filtragemPorEqDif(x, num, den)
-    % Filtragem por equação de diferenças
     % Normalização para garantir que den(1) = 1
     if den(1) ~= 1
         num = num / den(1);
@@ -686,63 +681,46 @@ function y = filtragemPorEqDif(x, num, den)
     
     % Laço amostra a amostra
     for n = 1:Nx
-        acc = 0;
-        
-        % Soma dos termos num(k)*x[n-k+1]
+        acc = 0;              % acumulador para calcular y[n]
+
+        % --- soma dos termos num(k)*x[n-k+1] ---
         for k = 1:M
-            idx = n - k + 1;
-            if idx > 0
+            idx = n - k + 1;         % índice correspondente em x (MATLAB 1-based)
+            if idx > 0               % somente se índice válido (condição inicial = 0)
                 acc = acc + num(k) * x(idx);
             end
         end
-        
-        % Feedback: subtração dos termos den(k)*y[n-k+1], k>=2
+
+        % --- Feedback: subtração dos termos den(k)*y[n-k+1], k>=2 ---
+        % (começa em k=2 porque den(1), depois da normalização certamente unitário, corresponde ao coeficiente de y[n])
         for k = 2:N
-            idx = n - k + 1;
-            if idx > 0
+            idx = n - k + 1;         % índice correspondente em y
+            if idx > 0               % somente se índice válido (condição inicial = 0)
                 acc = acc - den(k) * y(idx);
             end
         end
-        
+
+        % --- Armazena resultado ---
         y(n) = acc;
     end
 end
 
 function y = filtragemPorFFT(x, h)
-    % Filtragem pela multiplicação da FFT
     % Comprimentos
     Nx = length(x);
     Nh = length(h);
-    
+
     % Tamanho da FFT (potência de 2 >= Nx+Nh-1)
-    % Limitar tamanho máximo para evitar overflow
-    Nfft_ideal = Nx + Nh - 1;
-    Nfft = 2^(nextpow2(Nfft_ideal));
+    Nfft = 2^(nextpow2(Nx+Nh-1));  
     
-    % Verificar se não excede limite
-    max_size = 2^27;  % ~134 milhões de elementos
-    if Nfft > max_size
-        fprintf('   AVISO: FFT muito grande (%d), usando tamanho limitado\n', Nfft);
-        Nfft = max_size;
-    end
-    
-    % Garantir que x e h são vetores coluna
-    x = x(:);
-    h = h(:);
-    
-    % FFT do sinal e da resposta
+    % FFT do sinal e da resposta truncada
     X = fft(x, Nfft);
     H = fft(h, Nfft);
-    
+
     % Multiplicação no domínio da frequência
     Y = X .* H;
-    
+
     % IFFT e truncagem para tamanho correto
-    y = real(ifft(Y));
-    
-    % Retornar apenas a parte válida da convolução
-    y = y(1:min(Nfft_ideal, length(y)));
-    
-    % Garantir formato de coluna
-    y = y(:);
+    y = (real(ifft(Y)));
+    y = y(1:Nx+Nh-1);
 end

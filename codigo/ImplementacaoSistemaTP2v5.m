@@ -179,7 +179,7 @@ grid on;
 %% ------- 1.4 Respostas de magnitude e fase do filtro FIR -------
 fprintf('1.4. Apresentação das respostas do filtro FIR\n\n');
 
-Nfft_filter = 16384;
+Nfft_filter = 16384; 
 [H_fir, w_fir] = freqz(h_fir, 1, Nfft_filter, fs);
 w_fir_khz = w_fir / 1000;
 
