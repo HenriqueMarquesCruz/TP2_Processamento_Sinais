@@ -346,6 +346,7 @@ fprintf('\n');
 
 %% ------- 1.7 Comparação FIR vs IIR -------
 fprintf('1.7. Análise Comparativa FIR vs IIR\n');
+fprintf('   (Carregar resultados do TP1 para comparação)\n\n');
 
 % Se tiver os coeficientes IIR do TP1:
 num_iir_file = fullfile(base_dir, 'coefs_num.mat');
@@ -398,6 +399,11 @@ if exist(num_iir_file,'file') && exist(den_iir_file,'file')
     legend('IIR', 'FIR');
     grid on;
     ylim([-120 5]);
+    
+    fprintf('   Comparação visual gerada.\n');
+    fprintf('   Observações:\n');
+    fprintf('   - FIR: fase linear, sem ripple significativo\n');
+    fprintf('   - IIR: ripple ~1dB, fase não-linear, menor ordem\n\n');
 else
     fprintf('   Arquivos IIR não encontrados. Comparação não realizada.\n\n');
 end

@@ -347,7 +347,7 @@ fprintf('\n');
 %% ------- 1.7 Comparação FIR vs IIR -------
 fprintf('1.7. Análise Comparativa FIR vs IIR\n');
 
-% Se tiver os coeficientes IIR do TP1:
+% Coeficientes IIR do TP1:
 num_iir_file = fullfile(base_dir, 'coefs_num.mat');
 den_iir_file = fullfile(base_dir, 'coefs_den.mat');
 
@@ -358,13 +358,33 @@ if exist(num_iir_file,'file') && exist(den_iir_file,'file')
     num_iir = s_num.num;
     den_iir = s_den.den;
     
-    % Filtrar com IIR
-    y_iir = filtragemPorEqDif(x, num_iir, den_iir);
+    % Obter resposta ao impulso do IIR
+    n_samples_iir = 1000;
+    [h_iir_full, ~] = impz(num_iir, den_iir, n_samples_iir);
     
-    % Comparação
+    % Truncar usando o mesmo critério do TP1 (1% do pico)
+    limiar_iir = 0.01 * max(abs(h_iir_full));
+    idx_iir = find(abs(h_iir_full) >= limiar_iir, 1, 'last');
+    h_iir_trunc = h_iir_full(1:idx_iir);
+    Nh_iir = length(h_iir_trunc);
+    
+    fprintf('   Resposta ao impulso IIR truncada: Nh = %d amostras\n', Nh_iir);
+    
+    % Filtrar com IIR usando os 3 métodos
+    y_iir_eqdif = filtragemPorEqDif(x, num_iir, den_iir);
+    
+    y_iir_conv = filtragemPorConv(x, h_iir_trunc);
+    y_iir_conv = y_iir_conv(1:N);  % truncar ao tamanho original
+    
+    y_iir_fft = filtragemPorFFT(x, h_iir_trunc);
+    y_iir_fft = y_iir_fft(1:N);  % truncar ao tamanho original
+    
+    % Usar y_iir_eqdif para os gráficos (método de referência)
+    y_iir = y_iir_eqdif;
+    
+    % Comparação - Gráficos
     fig5 = fixedFig('1.7. Comparação FIR vs IIR', defaultFigPos);
-    figure(fig5);  % força ativação da janela correta
-
+    
     subplot(2,2,1);
     plot(t, y_iir);
     xlabel('Tempo (s)'); ylabel('Amplitude');
@@ -398,6 +418,41 @@ if exist(num_iir_file,'file') && exist(den_iir_file,'file')
     legend('IIR', 'FIR');
     grid on;
     ylim([-120 5]);
+    
+    % ===== Métricas quantitativas (impressas no console) =====
+    fprintf('\n   === Métricas de Comparação ===\n\n');
+    
+    % SNR para IIR
+    snr_iir_eqdif = 10*log10(sum(y_iir_eqdif.^2) / sum((x-y_iir_eqdif).^2));
+    snr_iir_conv = 10*log10(sum(y_iir_conv.^2) / sum((x-y_iir_conv).^2));
+    snr_iir_fft = 10*log10(sum(y_iir_fft.^2) / sum((x-y_iir_fft).^2));
+    
+    % SNR para FIR
+    snr_fir_eqdif = 10*log10(sum(y_eqdif.^2) / sum((x-y_eqdif).^2));
+    snr_fir_conv = 10*log10(sum(y_conv.^2) / sum((x-y_conv).^2));
+    snr_fir_fft = 10*log10(sum(y_fft.^2) / sum((x-y_fft).^2));
+    
+    fprintf('   SNR Filtro IIR:\n');
+    fprintf('      Eq. Diferenças: %.2f dB\n', snr_iir_eqdif);
+    fprintf('      Convolução:     %.2f dB\n', snr_iir_conv);
+    fprintf('      FFT:            %.2f dB\n\n', snr_iir_fft);
+    
+    fprintf('   SNR Filtro FIR:\n');
+    fprintf('      Eq. Diferenças: %.2f dB\n', snr_fir_eqdif);
+    fprintf('      Convolução:     %.2f dB\n', snr_fir_conv);
+    fprintf('      FFT:            %.2f dB\n\n', snr_fir_fft);
+    
+    fprintf('   Diferença FIR - IIR:\n');
+    fprintf('      Eq. Diferenças: %.2f dB\n', snr_fir_eqdif - snr_iir_eqdif);
+    fprintf('      Convolução:     %.2f dB\n', snr_fir_conv - snr_iir_conv);
+    fprintf('      FFT:            %.2f dB\n\n', snr_fir_fft - snr_iir_fft);
+    
+    % Diferenças entre métodos (consistência)
+    fprintf('   Consistência entre métodos (erro máximo absoluto):\n');
+    fprintf('      IIR: Conv vs EqDif = %.4e\n', max(abs(y_iir_conv - y_iir_eqdif)));
+    fprintf('      IIR: FFT vs EqDif  = %.4e\n', max(abs(y_iir_fft - y_iir_eqdif)));
+    fprintf('      FIR: Conv vs EqDif = %.4e\n', max(abs(y_conv - y_eqdif)));
+    fprintf('      FIR: FFT vs EqDif  = %.4e\n\n', max(abs(y_fft - y_eqdif)));
 else
     fprintf('   Arquivos IIR não encontrados. Comparação não realizada.\n\n');
 end
